@@ -21,69 +21,56 @@
 #include <cppconn/prepared_statement.h>
 #include <cppconn/statement.h>
 
-using boost::shared_ptr;
 
-namespace active911 {
+class MySQLConnection : public Connection {
 
+public:
+    shared_ptr<sql::Connection> _sqlConnection;
 
-	class MySQLConnection : public Connection {
+    ~MySQLConnection() 
+    {
+        if(_sqlConnection) 
+        {
+            _DEBUG("MYSQL Destruct");
 
-	public:
-
-
-		~MySQLConnection() {
-
-			if(this->sql_connection) {
-
-				_DEBUG("MYSQL Destruct");
-
-				this->sql_connection->close();
-				this->sql_connection.reset(); 	// Release and destruct
-				
-			}
-
-		};
-
-		boost::shared_ptr<sql::Connection> sql_connection;
-		int a;
-	};
+            _sqlConnection->close();
+            _sqlConnection.reset(); 	// Release and destruct
+        }
+    };
+};
 
 
-	class MySQLConnectionFactory : public ConnectionFactory {
+class MySQLConnectionFactory : public ConnectionFactory {
 
-	public:
-		MySQLConnectionFactory(std::string server, std::string username, std::string password) {
+private:
+    string _dbServer;
+    string _dbUsername;
+    string _dbPassword;
+    string _dbName;
 
-			this->server=server;
-			this->username=username;
-			this->password=password;
+public:
+    MySQLConnectionFactory(string dbServer, string dbUsername, string dbPassword, string dbName) 
+    {
+        _dbServer = dbServer;
+        _dbUsername = dbUsername;
+        _dbPassword = dbPassword;
+        _dbName = dbName;
+    };
 
-		};
+    // Any exceptions thrown here should be caught elsewhere
+    shared_ptr<Connection> create() {
 
-		// Any exceptions thrown here should be caught elsewhere
-		shared_ptr<Connection> create() {
+        sql::Driver *driver;
+        driver = get_driver_instance();
 
-			// Get the driver
-			sql::Driver *driver;
-			driver=get_driver_instance();
+        // server like "tcp://127.0.0.1:3306"
+        shared_ptr<sql::Connection> connectionFromDriver (driver->connect(_dbServer, _dbUsername, _dbPassword));
+        connectionFromDriver->setSchema(_dbName);
 
-			// Create the connection
-			shared_ptr<MySQLConnection>conn(new MySQLConnection());
+        shared_ptr<MySQLConnection>     mySqlConnection = make_shared<MySQLConnection>();
+        mySqlConnection->_sqlConnection = connectionFromDriver;
 
-			// Connect
-			conn->sql_connection=boost::shared_ptr<sql::Connection>(driver->connect(this->server,this->username,this->password));
+        return static_pointer_cast<Connection>(mySqlConnection);
+    };
 
-			return boost::static_pointer_cast<Connection>(conn);
-		};
-
-	private:
-		string server;
-		string username;
-		string password;
-	};
-
-
-
-
-
-}
+};
